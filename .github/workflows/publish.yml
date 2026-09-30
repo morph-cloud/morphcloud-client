@@ -1,0 +1,53 @@
+# Runs in the public mirror (morph-cloud/morphcloud-client), where this folder is the repo root.
+# In the backend repo this file sits under client/ and GitHub ignores it.
+#
+# Every push to main is checked. When package.json carries a version that npm does not have yet,
+# that version is published with provenance. Without the NPM_TOKEN secret the publish step is
+# skipped, not failed.
+name: check-and-publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: Is this version new?
+        id: version
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "$name@$version is already on npm"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            echo "$name@$version is new"
+          fi
+
+      - name: Publish
+        if: steps.version.outputs.new == 'true' && env.HAS_NPM_TOKEN == 'true'
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
