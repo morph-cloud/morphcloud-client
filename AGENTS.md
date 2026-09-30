@@ -140,6 +140,33 @@ sub.close()                                           // on unmount
 - An `update` event holds only the fields that changed. `applyEvents` merges it.
 - Row ids can arrive as a number or a string. `applyEvents` handles both.
 - `tasks.subscribeRow(rowId, handlers)` listens to one row.
+- `onStatus: (status) => …` reports `'connecting'`, `'open'` or `'closed'`. Use it to show a
+  "live" or "offline" sign. The client reconnects by itself; do not open a WebSocket yourself.
+
+Every event has this shape. A frame can hold one event or many; `onEvents` always gets a list.
+
+```ts
+{ type: 'create' | 'update' | 'delete' | 'resync', id?: number | string, body?: { … } }
+```
+
+`create` and `update` carry the row's fields in `body` (an `update` only the changed ones),
+`delete` carries only the `id`, and `resync` carries nothing. Ignore a `type` you do not know:
+the server can add types, and the client passes them through unchanged.
+
+**Any other live path.** Every path whose envelope has `control.connectable: true` streams. Check
+that flag first, then listen with the general form:
+
+```ts
+import { subscribe } from '@morphcloud/client'
+
+const nav = await mc.client.get(path)
+if (nav.control?.connectable) {
+  const sub = subscribe(mc.client, path, { onStale: reload, onEvents, onStatus })
+}
+```
+
+The live paths today are a table's rows, one row, a row's child rows, an action's log and an agent
+chat. Each sends its own event types: read the events you get before you depend on a shape.
 
 ## Errors
 
