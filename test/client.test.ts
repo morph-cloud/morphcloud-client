@@ -131,6 +131,32 @@ describe('Table', () => {
     expect(init!.body).toBe(JSON.stringify({ value: '2026-10-01' }))
   })
 
+  it('uploads a Blob to a file cell as the multipart part "file" (the server refuses any other name)', async () => {
+    const fetch = vi.fn(async (u: string | URL | Request, _i?: RequestInit) =>
+      String(u).includes('/row?')
+        ? reply(200, { data: { content: [], totalElements: 0, totalPages: 0, request: { page: 0, size: 1 }, columns: [{ nameCamel: 'file', nameSlug: 'file' }] } })
+        : reply(200, { data: {} }))
+    const table = new Table(new Client({ apiBaseUrl: 'https://api.test', fetch }), '/ws/w/table/docs')
+    await table.setCell(5, 'file', new Blob(['%PDF'], { type: 'application/pdf' }))
+    const [url, init] = fetch.mock.calls[1]!
+    expect(url).toBe('https://api.test/ws/w/table/docs/row/5/cell/file')
+    const form = init!.body as FormData
+    expect(form).toBeInstanceOf(FormData)
+    expect(form.get('file')).toBeInstanceOf(Blob)
+    expect(form.get('value')).toBeNull()
+  })
+
+  it('downloadFile asks the file cell for its download', async () => {
+    const fetch = vi.fn(async (u: string | URL | Request, _i?: RequestInit) =>
+      String(u).includes('/row?')
+        ? reply(200, { data: { content: [], totalElements: 0, totalPages: 0, request: { page: 0, size: 1 }, columns: [{ nameCamel: 'file', nameSlug: 'file' }] } })
+        : new Response('bytes', { status: 200, headers: { 'Content-Disposition': 'attachment; filename="a.pdf"' } }))
+    const table = new Table(new Client({ apiBaseUrl: 'https://api.test', fetch }), '/ws/w/table/docs')
+    const { filename } = await table.downloadFile(5, 'file')
+    expect(fetch.mock.calls[1]![0]).toBe('https://api.test/ws/w/table/docs/row/5/cell/file?download=true')
+    expect(filename).toBe('a.pdf')
+  })
+
   it('execute sends one payload, or an array for many rows', async () => {
     const fetch = vi.fn(async (_u: string | URL | Request, _i?: RequestInit) => reply(200, { data: {} }))
     const table = new Table(new Client({ apiBaseUrl: 'https://api.test', fetch }), '/ws/w/table/tasks')

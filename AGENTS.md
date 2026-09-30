@@ -13,11 +13,16 @@ that write a frontend on Morphcloud. The Lovable workspace skill is a copy of it
 3. Every address the app is served from must be one of the app's return addresses. A Lovable
    project has three: `https://id-preview--<project id>.lovable.app/`,
    `https://preview--<name>.lovable.app/` and `https://<name>.lovable.app/`. If one is missing,
-   sign-in is refused and the browser blocks the API calls.
-4. Show the server's error message to the user. It is written for them.
-5. If `control.action[method].authorized` is false, show the control disabled with its
+   sign-in is refused ("redirect_uri … is not one of this client's return addresses") and the
+   browser blocks the API calls.
+4. The published name is known only after the first publication. **After every publication and
+   every rename, read the project's addresses and add any new one to the app's return addresses**
+   (a workspace admin `PATCH`es the app, keeping the addresses it already has). Before the first
+   publication, register the editor address (`id-preview--<project id>`) so the preview works.
+5. Show the server's error message to the user. It is written for them.
+6. If `control.action[method].authorized` is false, show the control disabled with its
    `message`. Do not hide it.
-6. Do not build paths from strings. Use the helpers below, or follow `linkTo` values from a
+7. Do not build paths from strings. Use the helpers below, or follow `linkTo` values from a
    response.
 
 ## Setup
@@ -83,6 +88,21 @@ can filter and sort on are in `page.control.action.get.handlers` (the `page` han
 
 A page holds 25 rows by default and 1000 at most. Read `totalElements`; do not assume one page
 holds everything.
+
+## Files
+
+A file lives in a file cell (a column of type `file`, `excel`, `word`, `pdf`, `image` or `csv`).
+
+```ts
+const { data: row } = await tasks.createRow({ title: 'Invoice' })   // the row first
+await tasks.setCell(row.rowId, 'file', file)                         // then the file: a File or Blob
+const { blob, filename } = await tasks.downloadFile(row.rowId, 'file')
+const url = URL.createObjectURL(blob)                                // for a preview or a link
+```
+
+Do not send a file inside `createRow`: create the row, then upload with `setCell`. A download
+needs the member's token, so fetch it with `downloadFile`; a plain `<img src>` or `<a href>` to
+the API cannot send the token. The most one upload can hold is 100 MB.
 
 ## Actions
 

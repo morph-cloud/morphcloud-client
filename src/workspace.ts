@@ -194,15 +194,26 @@ export class Table {
     return this.client.post(this.rowsPath, values)
   }
 
-  /** Write one cell. `column` is the camelCase key or the slug. `null` empties the cell. */
+  /**
+   * Write one cell. `column` is the camelCase key or the slug. `null` empties the cell.
+   * A `File` or `Blob` value uploads it to a file cell (a file, excel, word, pdf, image or csv
+   * column); the server keeps the file and the cell refers to it.
+   */
   async setCell(rowId: number | string, column: string, value: unknown): Promise<Nav<Record<string, unknown>>> {
-    const slug = await this.slugOf(column)
-    return this.client.put(childPath(this.rowPath(rowId), 'cell', slug), { value })
+    const path = childPath(this.rowPath(rowId), 'cell', await this.slugOf(column))
+    // A file cell takes its upload as the multipart part "file", every other cell a JSON "value".
+    return this.client.put(path, isBinary(value) ? { file: value } : { value })
+  }
+
+  /** Download the file in a file cell. The filename is the one the file was uploaded with. */
+  async downloadFile(rowId: number | string, column: string): Promise<{ blob: Blob; filename: string | null }> {
+    return this.client.download(childPath(this.rowPath(rowId), 'cell', await this.slugOf(column)))
   }
 
   /**
    * Write several cells of one row. Each cell is its own request, sent in order. This is not
    * atomic: when one fails, the cells before it stay written, and the error says which failed.
+   * A `File` or `Blob` value uploads to a file cell, as in `setCell`.
    */
   async updateRow(rowId: number | string, values: RowValues): Promise<void> {
     for (const [column, value] of Object.entries(values)) {
@@ -255,4 +266,8 @@ export type ExecuteResult = {
   /** The run log of this execution. */
   logUuid: string
   message: string
+}
+
+function isBinary(v: unknown): v is Blob {
+  return typeof Blob !== 'undefined' && v instanceof Blob
 }

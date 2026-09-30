@@ -1,6 +1,6 @@
 {
   "name": "@morphcloud/client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Browser and Node client for the Morphcloud Navigator API: sign-in, envelopes, workspaces, tables and live updates.",
   "license": "UNLICENSED",
   "repository": {
