@@ -2,8 +2,11 @@
 # In the backend repo this file sits under client/ and GitHub ignores it.
 #
 # Every push to main is checked. When package.json carries a version that npm does not have yet,
-# that version is published with provenance. Without the NPM_TOKEN secret the publish step is
-# skipped, not failed.
+# that version is STAGED on npm with provenance, and goes live only when a maintainer approves it
+# on npmjs.com with their 2FA. There is no npm token: npm trusts this repository's publish.yml
+# workflow ("trusted publishing", on the package's settings page) and GitHub proves the
+# workflow's identity with a short-lived OIDC token. The trust allows staging only, never a
+# direct publish.
 name: check-and-publish
 
 on:
@@ -18,16 +21,16 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    env:
-      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
 
+      # Trusted publishing needs npm 11.5.1 or later; `npm stage` needs npm 12 (Node 22.22.2+ or 24.15+).
+      - run: npm install -g npm@latest
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
@@ -46,8 +49,6 @@ jobs:
             echo "$name@$version is new"
           fi
 
-      - name: Publish
-        if: steps.version.outputs.new == 'true' && env.HAS_NPM_TOKEN == 'true'
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Stage for approval
+        if: steps.version.outputs.new == 'true'
+        run: npm stage publish . --provenance --access public
