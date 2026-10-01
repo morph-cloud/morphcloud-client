@@ -43,7 +43,7 @@ export class Client {
 
   constructor(options: ClientOptions) {
     this.options = options
-    this.apiBaseUrl = options.apiBaseUrl.replace(/\/+$/, '')
+    this.apiBaseUrl = trimTrailingSlashes(options.apiBaseUrl)
     this.fetchFn = options.fetch ?? ((...args) => globalThis.fetch(...args))
   }
 
@@ -168,9 +168,20 @@ export function resourceOf(envelope: Nav, name: string): NavResource {
  * routes (`row`, `cell`) and dynamic ones (a row id, a column slug).
  */
 export function childPath(parent: string, ...segments: (string | number)[]): string {
-  let path = stripQuery(parent).replace(/\/+$/, '')
+  let path = trimTrailingSlashes(stripQuery(parent))
   for (const s of segments) path += '/' + encodeURIComponent(String(s))
   return path
+}
+
+/**
+ * The string without its trailing slashes. A loop, not `/\/+$/`: that regex retries from every slash
+ * in a long run that does not end the string, so its time grows with the square of the run (CodeQL
+ * js/polynomial-redos). This is linear.
+ */
+export function trimTrailingSlashes(s: string): string {
+  let end = s.length
+  while (end > 0 && s.charCodeAt(end - 1) === 47) end--
+  return s.slice(0, end)
 }
 
 export function stripQuery(path: string): string {

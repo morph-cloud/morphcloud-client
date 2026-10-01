@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Client, childPath, filenameOf } from '../src/client.js'
+import { Client, childPath, filenameOf, trimTrailingSlashes } from '../src/client.js'
 import { MorphcloudError } from '../src/error.js'
 import { applyEvents, parseFrame } from '../src/socket.js'
 import { Table, pageQuery } from '../src/workspace.js'
@@ -93,6 +93,17 @@ describe('Client', () => {
 })
 
 describe('paths and queries', () => {
+  it('trimTrailingSlashes removes only the trailing slashes, in linear time', () => {
+    expect(trimTrailingSlashes('https://api.example.com///')).toBe('https://api.example.com')
+    expect(trimTrailingSlashes('/a/b')).toBe('/a/b')
+    expect(trimTrailingSlashes('///')).toBe('')
+    expect(trimTrailingSlashes('')).toBe('')
+    const long = '/'.repeat(200_000) + 'x'
+    const start = Date.now()
+    expect(trimTrailingSlashes(long)).toBe(long)
+    expect(Date.now() - start).toBeLessThan(200)
+  })
+
   it('childPath follows the server rule and drops a query', () => {
     expect(childPath('/org/a/ws/b?x=1', 'table', 'my-table')).toBe('/org/a/ws/b/table/my-table')
   })
